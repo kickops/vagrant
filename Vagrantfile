@@ -1,24 +1,23 @@
-
+# Author: Kicky
 # -*- mode: ruby -*-
 # vi:set ft=ruby sw=2 ts=2 sts=2:
 
 # Define the number of master and worker nodes
 # If this number is changed, remember to update configure-hosts.sh script with the new hosts IP details in /etc/hosts of each VM.
-NUM_MASTER_NODE = 1
-NUM_WORKER_NODE = 2
+MASTER_COUNT = 1
+WORKER_COUNT = 2
 
-IP_NW = "192.168.56."
-MASTER_IP_START = 1
-NODE_IP_START = 2
-LB_IP_START = 30
+ENV['VAGRANT_NO_PARALLEL'] = 'yes'
 
 Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/bionic64"
   config.vm.box_check_update = false
-
+  config.vm.provision "shell", path: "scripts/configure-hosts.sh"
+  config.vm.provision "shell", path: "scripts/configure-dns.sh"
+  config.vm.provision "shell", path: "scripts/install-base-components.sh"
+ 
 
   # Provision Master Nodes
-  (1..NUM_MASTER_NODE).each do |i|
       config.vm.define "kubemaster" do |node|
         # Name shown in the GUI
         node.vm.provider "virtualbox" do |vb|
@@ -27,36 +26,26 @@ Vagrant.configure("2") do |config|
             vb.cpus = 2
         end
         node.vm.hostname = "kubemaster"
-        node.vm.network :private_network, ip: IP_NW + "#{MASTER_IP_START + i}"
-        node.vm.network "forwarded_port", guest: 22, host: "#{2710 + i}"
-
-        node.vm.provision "configure-hosts", :type => "shell", :path => "scripts/configure-hosts.sh" do |s|
-          s.args = ["enp0s8"]
-        end
-
-        node.vm.provision "setup-dns", type: "shell", :path => "scripts/configure-dns.sh"
-
+        node.vm.network :private_network, ip: "192.168.5.10"
+        node.vm.network "forwarded_port", guest: 22, host: "2710"
+       
+        node.vm.provision "shell", path: "scripts/setup-master.sh"
       end
-  end
 
 
   # Provision Worker Nodes
-  (1..NUM_WORKER_NODE).each do |i|
-    config.vm.define "kubenode0#{i}" do |node|
+  (1..WORKER_COUNT).each do |i|
+    config.vm.define "kubenode#{i}" do |node|
         node.vm.provider "virtualbox" do |vb|
-            vb.name = "kubenode0#{i}"
+            vb.name = "kubenode#{i}"
             vb.memory = 2048
             vb.cpus = 2
         end
-        node.vm.hostname = "kubenode0#{i}"
-        node.vm.network :private_network, ip: IP_NW + "#{NODE_IP_START + i}"
-                node.vm.network "forwarded_port", guest: 22, host: "#{2720 + i}"
-
-        node.vm.provision "configure-hosts", :type => "shell", :path => "scripts/configure-hosts.sh" do |s|
-          s.args = ["enp0s8"]
-        end
-
-        node.vm.provision "setup-dns", type: "shell", :path => "scripts/configure-dns.sh"
+        node.vm.hostname = "kubenode#{i}"
+        node.vm.network :private_network, ip: "192.168.5." + "#{2 + i}"
+        node.vm.network "forwarded_port", guest: 22, host: "#{2720 + i}"
+    
+        node.vm.provision "shell", path: "scripts/setup-worker.sh"
     end
   end
 end
